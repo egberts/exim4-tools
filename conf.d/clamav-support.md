@@ -134,9 +134,27 @@ deny
 
 Then make ClamAV use Exim4 sockets by executing:
 ```bash
-adduser clamav Debian-exim
-chmod -Rf g+w /var/spool/exim4
-chmod -Rf g+s /var/spool/exim4
+
+# Allow `exim4` to use the ClamAV's UNIX socket.
+#
+# ClamAV group owns the /run/clamav/clamd.ctl UNIX socket.
+# Give Exim4 the ClamAV group to read-write that socket.
+#
+# NOTE: It took me a GDB session to figure out the silent 
+# socket() error for a guy (who shall remain unnamed) 
+# for he had done 'adduser clamav Debian-exim' incorrectly.
+#
+adduser Debian-exim clamav
+
+# These would enable anyone with supplementary Debian-exim group
+# to be able to modify Exim spool files.
+# Makes it easier for 'maleware' logic to move files between spool folders 
+# WARNING: don't issue Debian-exim supplementary group to anyone
+chmod -Rf g+w,o-w /var/spool/exim4
+chmod -Rf g+s,o-s /var/spool/exim4
+
+# Could privatizes the /var/spool/exim4 from 'other' file permission, but no
+
 service exim4 restart
 ```
 
@@ -150,8 +168,8 @@ exim4 -bmalware /tmp/eicar.com.txt
 # Test Environment (SMTP Protocol)
 ```bash
 telnet localhost 25
-helo localhost
-from mail: <sender@example.com>
+ehlo localhost
+mail from: <sender@example.com>
 rcpt to: <user@localhost>
 data
 X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*
@@ -159,5 +177,13 @@ X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*
 
 
 ```
-The SMTP server will send a message about detected malware.
+The SMTP server will send a message about detected malware:
+```console
+550 This message was detected as possible malware (Eicar-Signature).
+554 SMTP synchronization error
+Connection closed by foreign host.
+root# 
+```
+
+We rock!
 
